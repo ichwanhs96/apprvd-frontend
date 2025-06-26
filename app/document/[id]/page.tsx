@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import withAuth from '@/components/withAuth';
 import { getCurrentUser, signOut } from '@/lib/firebase';
@@ -8,6 +8,7 @@ import UserDropdown from '@/components/UserDropdown';
 import TinyMCEEditor from '@/components/TinyMCEEditor';
 import ShareModal from '@/components/ShareModal';
 import AISidebar from '@/components/AISidebar';
+import { User as FirebaseUser } from 'firebase/auth';
 
 interface Document {
   id: string;
@@ -32,13 +33,13 @@ function DocumentPage() {
   const documentId = params.id as string;
   const editorRef = useRef<any>(null);
   
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<FirebaseUser | null>(null);
   const [document, setDocument] = useState<Document | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [documentName, setDocumentName] = useState('Untitled Document');
   const [editorContent, setEditorContent] = useState('');
-  const [sharedUsers, setSharedUsers] = useState<any[]>([]);
+  const [sharedUsers, setSharedUsers] = useState<SharedUser[]>([]);
   const [lastAutoSave, setLastAutoSave] = useState<Date | null>(null);
   const [showShareModal, setShowShareModal] = useState(false);
   const [userAccessLevel, setUserAccessLevel] = useState<'view' | 'edit'>('edit');
@@ -138,26 +139,7 @@ function DocumentPage() {
     return { startNode, startOffset, endNode, endOffset };
   };
 
-  useEffect(() => {
-    setUser(getCurrentUser());
-    loadDocument();
-    
-    // Listen for scroll to position events from AI sidebar
-    const handleScrollToPosition = (event: CustomEvent) => {
-      const position = event.detail;
-      if (editorRef.current && position) {
-        scrollToPosition(position);
-      }
-    };
-
-    window.addEventListener('scrollToPosition', handleScrollToPosition as EventListener);
-    
-    return () => {
-      window.removeEventListener('scrollToPosition', handleScrollToPosition as EventListener);
-    };
-  }, [documentId]);
-
-  const scrollToPosition = (position: { start: number; end: number }) => {
+  const scrollToPosition = useCallback((position: { start: number; end: number }) => {
     if (!editorRef.current) {
       console.error('Editor ref not available for scrolling to position');
       return;
@@ -212,7 +194,76 @@ function DocumentPage() {
     } catch (error) {
       console.error('Error scrolling to position:', error);
     }
-  };
+  }, []);
+
+  const loadDocument = useCallback(async () => {
+    try {
+      console.log('Loading document with ID:', documentId);
+      setLoading(true);
+      
+      const idToken = await getCurrentUser()?.getIdToken();
+      if (!idToken) {
+        console.error('No authentication token available');
+        throw new Error('No authentication token');
+      }
+
+      console.log('Making API request to fetch document...');
+      const response = await fetch(`/api/document/${documentId}`, {
+        headers: {
+          'Authorization': `Bearer ${idToken}`,
+        },
+      });
+
+      console.log('API response status:', response.status);
+      if (!response.ok) {
+        if (response.status === 404) {
+          console.error('Document not found');
+          router.push('/');
+          return;
+        }
+        throw new Error('Failed to fetch document');
+      }
+
+      const data = await response.json();
+      console.log('Document data received:', data);
+      const foundDocument = data.document;
+      
+      if (foundDocument) {
+        setDocument(foundDocument);
+        setEditorContent(foundDocument.content);
+        setDocumentName(foundDocument.name);
+        setUserAccessLevel(data.userAccessLevel || 'edit');
+        console.log('Document loaded successfully:', foundDocument.name);
+      } else {
+        console.error('Document not found in response');
+        router.push('/');
+      }
+    } catch (error) {
+      console.error('Failed to load document:', error);
+      router.push('/');
+    } finally {
+      setLoading(false);
+    }
+  }, [documentId, router]);
+
+  useEffect(() => {
+    setUser(getCurrentUser());
+    loadDocument();
+    
+    // Listen for scroll to position events from AI sidebar
+    const handleScrollToPosition = (event: CustomEvent) => {
+      const position = event.detail;
+      if (editorRef.current && position) {
+        scrollToPosition(position);
+      }
+    };
+
+    window.addEventListener('scrollToPosition', handleScrollToPosition as EventListener);
+    
+    return () => {
+      window.removeEventListener('scrollToPosition', handleScrollToPosition as EventListener);
+    };
+  }, [loadDocument, scrollToPosition]);
 
   const handleAddComment = (position: { start: number; end: number }, message: string) => {
     console.log('=== handleAddComment called ===');
@@ -399,50 +450,6 @@ function DocumentPage() {
     }
   };
 
-  const loadDocument = async () => {
-    try {
-      setLoading(true);
-      
-      const idToken = await getCurrentUser()?.getIdToken();
-      if (!idToken) {
-        throw new Error('No authentication token');
-      }
-
-      const response = await fetch(`/api/document/${documentId}`, {
-        headers: {
-          'Authorization': `Bearer ${idToken}`,
-        },
-      });
-
-      if (!response.ok) {
-        if (response.status === 404) {
-          console.error('Document not found');
-          router.push('/');
-          return;
-        }
-        throw new Error('Failed to fetch document');
-      }
-
-      const data = await response.json();
-      const foundDocument = data.document;
-      
-      if (foundDocument) {
-        setDocument(foundDocument);
-        setEditorContent(foundDocument.content);
-        setDocumentName(foundDocument.name);
-        setUserAccessLevel(data.userAccessLevel || 'edit');
-      } else {
-        console.error('Document not found');
-        router.push('/');
-      }
-    } catch (error) {
-      console.error('Failed to load document:', error);
-      router.push('/');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleLogout = async () => {
     await signOut();
     window.location.href = '/login';
@@ -481,6 +488,11 @@ function DocumentPage() {
       const data = await response.json();
       setDocument(data.document);
       setDocumentName(data.document.name);
+      
+      // Update user access level if document is now FINAL
+      if (newStatus === 'FINAL') {
+        setUserAccessLevel('view');
+      }
       
     } catch (error) {
       console.error('Failed to update status:', error);
@@ -570,8 +582,25 @@ function DocumentPage() {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
+  // Get the next status for the status update button
+  const getNextStatus = () => {
+    if (document?.status === 'DRAFT') return 'REVIEW';
+    if (document?.status === 'REVIEW') return 'FINAL';
+    return 'DRAFT'; // fallback
+  };
+
+  // Get the button text based on current status
+  const getStatusButtonText = () => {
+    if (document?.status === 'DRAFT') return 'Mark for Review';
+    if (document?.status === 'REVIEW') return 'Finalize Document';
+    return 'Change Status'; // fallback
+  };
+
+  // Check if user can edit (considering both access level and document status)
+  const canEdit = userAccessLevel === 'edit' && document?.status !== 'FINAL';
+
   // Fetch shared users
-  const fetchSharedUsers = async () => {
+  const fetchSharedUsers = useCallback(async () => {
     if (!user || !documentId) return;
 
     try {
@@ -589,7 +618,7 @@ function DocumentPage() {
     } catch (error) {
       console.error('Failed to fetch shared users:', error);
     }
-  };
+  }, [user, documentId]);
 
   // Fetch document and shared users
   useEffect(() => {
@@ -597,16 +626,16 @@ function DocumentPage() {
       loadDocument();
       fetchSharedUsers();
     }
-  }, [user, documentId]);
+  }, [user, documentId, loadDocument, fetchSharedUsers]);
 
   const handleContentChange = (content: string) => {
-    if (userAccessLevel === 'edit') {
+    if (canEdit) {
       setEditorContent(content);
     }
   };
 
   // Test function for debugging comment functionality
-  const testAddComment = () => {
+  const testAddComment = useCallback(() => {
     if (!editorRef.current) {
       console.error('Editor not available');
       return;
@@ -627,7 +656,7 @@ function DocumentPage() {
     console.log('Test message:', testMessage);
     
     handleAddComment(testPosition, testMessage);
-  };
+  }, [handleAddComment]);
 
   // Expose test function to window for debugging
   useEffect(() => {
@@ -635,13 +664,15 @@ function DocumentPage() {
     return () => {
       delete (window as any).testAddComment;
     };
-  }, []);
+  }, [testAddComment]);
 
   if (loading) {
     return (
       <div className="flex min-h-screen bg-gray-50 dark:bg-gray-950">
         <div className="flex-1 flex items-center justify-center">
-          <div className="text-lg text-black dark:text-white">Loading document...</div>
+          <div className="text-lg text-black dark:text-white">
+            Loading document... {documentId}
+          </div>
         </div>
       </div>
     );
@@ -651,7 +682,9 @@ function DocumentPage() {
     return (
       <div className="flex min-h-screen bg-gray-50 dark:bg-gray-950">
         <div className="flex-1 flex items-center justify-center">
-          <div className="text-lg text-black dark:text-white">Document not found</div>
+          <div className="text-lg text-black dark:text-white">
+            Document not found: {documentId}
+          </div>
         </div>
       </div>
     );
@@ -688,7 +721,7 @@ function DocumentPage() {
           {/* Right side - User and action buttons */}
           <div className="flex items-center space-x-3">
             {/* Manual Save Button - Only show for edit access */}
-            {userAccessLevel === 'edit' && (
+            {canEdit && (
               <button
                 onClick={handleSave}
                 disabled={saving}
@@ -698,16 +731,15 @@ function DocumentPage() {
               </button>
             )}
 
-            {/* Status Update Button - Only show for edit access */}
-            {userAccessLevel === 'edit' && (
+            {/* Status Update Button - Only show for edit access and not FINAL status */}
+            {userAccessLevel === 'edit' && document?.status !== 'FINAL' && (
               <div className="relative">
                 <button
-                  onClick={() => handleStatusUpdate(document.status === 'DRAFT' ? 'REVIEW' : 'FINAL')}
+                  onClick={() => handleStatusUpdate(getNextStatus())}
                   disabled={saving}
                   className="px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:bg-blue-300 text-white rounded-lg transition-colors text-sm"
                 >
-                  {document.status === 'DRAFT' ? 'Mark for Review' : 
-                   document.status === 'REVIEW' ? 'Finalize' : 'Change Status'}
+                  {getStatusButtonText()}
                 </button>
               </div>
             )}
@@ -740,10 +772,10 @@ function DocumentPage() {
                   onChange={handleContentChange}
                   onSave={handleAutoSave}
                   onAutoSave={handleAutoSaveComplete}
-                  disabled={saving}
+                  disabled={saving || !canEdit}
                   documentId={documentId}
                   sharedUsers={sharedUsers}
-                  userAccessLevel={userAccessLevel}
+                  userAccessLevel={canEdit ? 'edit' : 'view'}
                   ref={editorRef}
                 />
               </div>
@@ -762,7 +794,7 @@ function DocumentPage() {
         onAddComment={handleAddComment}
         editorRef={editorRef}
         isCreatingComment={isCreatingComment}
-        userAccessLevel={userAccessLevel}
+        userAccessLevel={canEdit ? 'edit' : 'view'}
       />
 
       {/* Share Modal */}

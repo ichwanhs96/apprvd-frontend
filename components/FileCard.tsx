@@ -1,5 +1,6 @@
 import React from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 interface FileCardProps {
   id: string;
@@ -58,8 +59,8 @@ export default function FileCard({
     // Prevent navigation if user is dragging
     if (e.defaultPrevented) return;
     
-    // Navigate to document editor page
-    router.push(`/document/${id}`);
+    // Let the Link component handle navigation
+    // The click handler is mainly for debugging
   };
 
   const getAccessLevelColor = (level?: string) => {
@@ -74,41 +75,43 @@ export default function FileCard({
   };
 
   return (
-    <div 
-      className="flex items-center bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg p-4 shadow-sm hover:shadow-md transition cursor-pointer"
-      draggable
-      onDragStart={handleDragStart}
-      onDrop={handleDrop}
-      onDragOver={handleDragOver}
-      onClick={handleClick}
-    >
-      <div className="mr-4">
-        <svg width="32" height="32" fill="#88DF95" viewBox="0 0 24 24">
-          <path d="M6 2h9l5 5v15a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/>
-        </svg>
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="text-black dark:text-white font-medium truncate">{name}</div>
-        <div className="text-sm text-gray-500 dark:text-gray-300">
-          Status: {status} • {formattedDate}
+    <Link href={`/document/${id}`} className="block">
+      <div 
+        className="flex items-center bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg p-4 shadow-sm hover:shadow-md transition cursor-pointer"
+        draggable
+        onDragStart={handleDragStart}
+        onDrop={handleDrop}
+        onDragOver={handleDragOver}
+        onClick={handleClick}
+      >
+        <div className="mr-4">
+          <svg width="32" height="32" fill="#88DF95" viewBox="0 0 24 24">
+            <path d="M6 2h9l5 5v15a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/>
+          </svg>
         </div>
-        {showSharedInfo && sharedBy && (
-          <div className="text-xs text-gray-400 dark:text-gray-400 mt-1">
-            <span className="mr-2">Shared by: {sharedBy}</span>
-            {accessLevel && (
-              <span className={`px-1 py-0.5 rounded text-xs font-medium ${getAccessLevelColor(accessLevel)}`}>
-                {accessLevel}
-              </span>
-            )}
+        <div className="flex-1 min-w-0">
+          <div className="text-black dark:text-white font-medium truncate">{name}</div>
+          <div className="text-sm text-gray-500 dark:text-gray-300">
+            Status: {status} • {formattedDate}
           </div>
-        )}
-        {(language || version) && (
-          <div className="text-xs text-gray-400 dark:text-gray-400 mt-1">
-            {language && <span className="mr-2">Lang: {language}</span>}
-            {version && <span>v{version}</span>}
-          </div>
-        )}
+          {showSharedInfo && sharedBy && (
+            <div className="text-xs text-gray-400 dark:text-gray-400 mt-1">
+              <span className="mr-2">Shared by: {sharedBy}</span>
+              {accessLevel && (
+                <span className={`px-1 py-0.5 rounded text-xs font-medium ${getAccessLevelColor(accessLevel)}`}>
+                  {accessLevel}
+                </span>
+              )}
+            </div>
+          )}
+          {(language || version) && (
+            <div className="text-xs text-gray-400 dark:text-gray-400 mt-1">
+              {language && <span className="mr-2">Lang: {language}</span>}
+              {version && <span>v{version}</span>}
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    </Link>
   );
 } 

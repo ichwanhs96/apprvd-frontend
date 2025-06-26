@@ -52,7 +52,12 @@ export async function GET(
     
     // Determine user's access level
     const isOwner = document.created_by === userId;
-    const userAccessLevel = isOwner ? 'edit' : (document.access_level || 'view');
+    let userAccessLevel = isOwner ? 'edit' : (document.access_level || 'view');
+    
+    // If document is FINAL, everyone has view-only access
+    if (document.status === 'FINAL') {
+      userAccessLevel = 'view';
+    }
 
     return NextResponse.json({ 
       document: {
@@ -114,7 +119,7 @@ export async function PUT(
 
     // Verify document exists and user has access
     const documentResult = await query(
-      `SELECT d.id, d.created_by, doc_owner.access_level
+      `SELECT d.id, d.name, d.created_by, d.status as current_status, doc_owner.access_level
        FROM document d
        LEFT JOIN document_ownership doc_owner ON d.id = doc_owner.document_id AND doc_owner.user_id = $2
        WHERE d.id = $1 AND (d.created_by = $2 OR doc_owner.user_id = $2) AND d.soft_delete = false`,
@@ -128,8 +133,15 @@ export async function PUT(
     const document = documentResult.rows[0];
     const isOwner = document.created_by === userId;
     const hasEditAccess = isOwner || document.access_level === 'edit';
+    const currentStatus = document.current_status;
 
-    if (!hasEditAccess) {
+    // Check if status is being changed to FINAL and prevent editing
+    if (status === 'FINAL' && currentStatus !== 'FINAL') {
+      // Allow status change to FINAL
+    } else if (currentStatus === 'FINAL') {
+      // Document is already FINAL, no editing allowed
+      return NextResponse.json({ error: 'Document is finalized and cannot be edited' }, { status: 403 });
+    } else if (!hasEditAccess) {
       return NextResponse.json({ error: 'You only have view access to this document' }, { status: 403 });
     }
 
@@ -149,6 +161,12 @@ export async function PUT(
       }
 
       const updatedDocument = updateResult.rows[0];
+      
+      // Send notification if status changed
+      if (status !== currentStatus) {
+        await sendStatusChangeNotification(documentId, document.name, currentStatus, status, userId);
+      }
+      
       return NextResponse.json({ document: updatedDocument });
     } else {
       // Update only content and status, preserve existing name
@@ -165,11 +183,71 @@ export async function PUT(
       }
 
       const updatedDocument = updateResult.rows[0];
+      
+      // Send notification if status changed
+      if (status !== currentStatus) {
+        await sendStatusChangeNotification(documentId, document.name, currentStatus, status, userId);
+      }
+      
       return NextResponse.json({ document: updatedDocument });
     }
 
   } catch (error) {
     console.error('Document update API error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+// Helper function to send status change notifications
+async function sendStatusChangeNotification(
+  documentId: string, 
+  documentName: string, 
+  oldStatus: string, 
+  newStatus: string, 
+  senderId: number
+) {
+  try {
+    // Get all users with access to this document
+    const usersResult = await query(
+      `SELECT DISTINCT u.id, u.email
+       FROM "user" u
+       WHERE u.id = (
+         SELECT created_by FROM document WHERE id = $1
+       )
+       OR u.id IN (
+         SELECT user_id FROM document_ownership WHERE document_id = $1
+       )`,
+      [documentId]
+    );
+
+    const statusMessages = {
+      'DRAFT': 'draft',
+      'REVIEW': 'review',
+      'FINAL': 'finalized'
+    };
+
+    const oldStatusText = statusMessages[oldStatus as keyof typeof statusMessages] || oldStatus.toLowerCase();
+    const newStatusText = statusMessages[newStatus as keyof typeof statusMessages] || newStatus.toLowerCase();
+
+    // Create notifications for all users except the sender
+    for (const user of usersResult.rows) {
+      if (user.id !== senderId) {
+        await query(
+          `INSERT INTO notification (recipient_id, sender_id, document_id, type, title, message, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, now(), now())`,
+          [
+            user.id,
+            senderId,
+            documentId,
+            'status_change',
+            `Document Status Updated`,
+            `The document "${documentName}" has been moved from ${oldStatusText} to ${newStatusText}.`,
+          ]
+        );
+      }
+    }
+  } catch (error) {
+    console.error('Failed to send status change notifications:', error);
+    // Don't fail the main request if notifications fail
   }
 } 

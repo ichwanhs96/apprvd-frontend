@@ -15,20 +15,6 @@ interface AISidebarProps {
   userAccessLevel?: 'view' | 'edit';
 }
 
-interface AIResponse {
-  summary?: string;
-  suggestions?: Array<{
-    id: string;
-    type: 'compliance' | 'legal_risk' | 'data_protection' | 'regulatory' | 'clarity' | 'structure';
-    message: string;
-    severity: 'low' | 'medium' | 'high' | 'critical';
-    position?: { start: number; end: number };
-    euRegulation?: string;
-    recommendation?: string;
-    highlightedText?: string;
-  }>;
-}
-
 export default function AISidebar({ 
   documentId, 
   documentContent, 
@@ -177,7 +163,7 @@ export default function AISidebar({
     }
   };
 
-  const getSuggestionColor = (type: string, severity: string) => {
+  const getSuggestionColor = (type: string) => {
     const baseColors = {
       compliance: 'text-green-500 bg-green-50 dark:bg-green-900/20',
       legal_risk: 'text-red-500 bg-red-50 dark:bg-red-900/20',
@@ -477,7 +463,7 @@ export default function AISidebar({
                       className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 border-l-4 border-blue-500"
                     >
                       <div className="flex items-start gap-2">
-                        <div className={`p-1 rounded-full ${getSuggestionColor(suggestion.type, suggestion.severity)}`}>
+                        <div className={`p-1 rounded-full ${getSuggestionColor(suggestion.type)}`}>
                           {getSuggestionIcon(suggestion.type)}
                         </div>
                         <div className="flex-1">
@@ -496,7 +482,7 @@ export default function AISidebar({
                           
                           {suggestion.highlightedText && (
                             <div className="bg-yellow-100 dark:bg-yellow-900/30 p-2 rounded text-xs text-gray-700 dark:text-gray-300 mb-2">
-                              <span className="font-medium">Highlighted text:</span> "{suggestion.highlightedText}"
+                              <span className="font-medium">Highlighted text:</span> &ldquo;{suggestion.highlightedText}&rdquo;
                             </div>
                           )}
                           

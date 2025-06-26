@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { apiCall } from '@/lib/api';
+import { useNotifications } from '@/lib/NotificationContext';
 
 interface Notification {
   id: number;
@@ -24,62 +24,24 @@ interface NotificationDropdownProps {
 
 export default function NotificationDropdown({ user }: NotificationDropdownProps) {
   const [showDropdown, setShowDropdown] = useState(false);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
   const router = useRouter();
+  
+  // Use the notification context
+  const { 
+    notifications, 
+    unreadCount, 
+    loading, 
+    fetchNotifications, 
+    markAsRead, 
+    markAllAsRead 
+  } = useNotifications();
 
-  // Fetch notifications
-  const fetchNotifications = async () => {
-    try {
-      setLoading(true);
-      const response = await apiCall('/notifications?limit=10&unread_only=false');
-      setNotifications(response.notifications);
-      setUnreadCount(response.notifications.filter((n: Notification) => !n.readAt).length);
-    } catch (error) {
-      console.error('Failed to fetch notifications:', error);
-    } finally {
-      setLoading(false);
+  // Fetch notifications when dropdown opens
+  useEffect(() => {
+    if (showDropdown) {
+      fetchNotifications();
     }
-  };
-
-  // Mark notification as read
-  const markAsRead = async (notificationId: number) => {
-    try {
-      await apiCall('/notifications', {
-        method: 'PUT',
-        body: JSON.stringify({ notificationIds: [notificationId] })
-      });
-      
-      // Update local state
-      setNotifications(prev => 
-        prev.map(n => 
-          n.id === notificationId ? { ...n, readAt: new Date().toISOString() } : n
-        )
-      );
-      setUnreadCount(prev => Math.max(0, prev - 1));
-    } catch (error) {
-      console.error('Failed to mark notification as read:', error);
-    }
-  };
-
-  // Mark all as read
-  const markAllAsRead = async () => {
-    try {
-      await apiCall('/notifications', {
-        method: 'PUT',
-        body: JSON.stringify({ markAllAsRead: true })
-      });
-      
-      // Update local state
-      setNotifications(prev => 
-        prev.map(n => ({ ...n, readAt: n.readAt || new Date().toISOString() }))
-      );
-      setUnreadCount(0);
-    } catch (error) {
-      console.error('Failed to mark all notifications as read:', error);
-    }
-  };
+  }, [showDropdown, fetchNotifications]);
 
   // Navigate to document
   const handleNotificationClick = async (notification: Notification) => {
@@ -93,13 +55,6 @@ export default function NotificationDropdown({ user }: NotificationDropdownProps
     
     setShowDropdown(false);
   };
-
-  // Fetch notifications when dropdown opens
-  useEffect(() => {
-    if (showDropdown) {
-      fetchNotifications();
-    }
-  }, [showDropdown]);
 
   // Format date
   const formatDate = (dateString: string) => {
