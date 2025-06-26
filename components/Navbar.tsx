@@ -1,5 +1,7 @@
 import React, { useState, useEffect, ChangeEvent } from 'react';
 import Image from 'next/image';
+import UserDropdown from './UserDropdown';
+import NotificationDropdown from './NotificationDropdown';
 
 interface NavbarProps {
   user: any;
@@ -11,7 +13,6 @@ interface NavbarProps {
 }
 
 export default function Navbar({ user, onLogout, onMenuClick, search, onSearch, onClearSearch }: NavbarProps) {
-  const [showDropdown, setShowDropdown] = useState(false);
   const [isDark, setIsDark] = useState(false);
 
   useEffect(() => {
@@ -115,34 +116,8 @@ export default function Navbar({ user, onLogout, onMenuClick, search, onSearch, 
               </svg>
             )}
           </button>
-          <div className="relative">
-            {user && user.photoURL ? (
-              <button
-                onClick={() => setShowDropdown((v) => !v)}
-                className="flex items-center focus:outline-none"
-              >
-                <Image
-                  src={user.photoURL}
-                  alt="User Avatar"
-                  width={40}
-                  height={40}
-                  className="rounded-full border"
-                />
-              </button>
-            ) : (
-              <div className="w-10 h-10 rounded-full bg-gray-200" />
-            )}
-            {showDropdown && (
-              <div className="absolute right-0 mt-2 w-40 bg-white dark:bg-gray-900 border dark:border-gray-700 rounded-md shadow-lg z-10">
-                <button
-                  onClick={onLogout}
-                  className="block w-full text-left px-4 py-2 text-black dark:text-white hover:bg-[#88DF95]/20 dark:hover:bg-[#88DF95]/30"
-                >
-                  Logout
-                </button>
-              </div>
-            )}
-          </div>
+          <NotificationDropdown user={user} />
+          <UserDropdown user={user} onLogout={onLogout} size="lg" />
         </div>
       </div>
     </header>

@@ -3,14 +3,46 @@ import React, { useState } from 'react';
 interface SidebarProps {
   open?: boolean;
   onClose?: () => void;
+  onCreateFolder?: () => void;
+  onCreateFile?: () => void;
+  currentView?: 'home' | 'drive' | 'shared' | 'recent' | 'starred';
+  onViewChange?: (view: 'home' | 'drive' | 'shared' | 'recent' | 'starred') => void;
 }
 
-export default function Sidebar({ open = false, onClose }: SidebarProps) {
+export default function Sidebar({ 
+  open = false, 
+  onClose, 
+  onCreateFolder, 
+  onCreateFile,
+  currentView = 'home',
+  onViewChange
+}: SidebarProps) {
   const [showDropdown, setShowDropdown] = useState(false);
 
   const handleNew = (type: 'folder' | 'file') => {
     setShowDropdown(false);
-    alert(`Create new ${type}`);
+    if (type === 'folder' && onCreateFolder) {
+      onCreateFolder();
+    } else if (type === 'file' && onCreateFile) {
+      onCreateFile();
+    }
+  };
+
+  const handleViewClick = (view: 'home' | 'drive' | 'shared' | 'recent' | 'starred') => {
+    if (onViewChange) {
+      onViewChange(view);
+    }
+  };
+
+  const getViewClass = (view: 'home' | 'drive' | 'shared' | 'recent' | 'starred') => {
+    const baseClass = "py-2 px-3 rounded-md font-medium transition-colors";
+    const isActive = currentView === view;
+    
+    if (isActive) {
+      return `${baseClass} bg-[#88DF95] text-black dark:bg-[#88DF95] dark:text-black`;
+    } else {
+      return `${baseClass} text-black dark:text-white hover:bg-[#88DF95]/20 dark:hover:bg-[#88DF95]/30`;
+    }
   };
 
   return (
@@ -73,17 +105,42 @@ export default function Sidebar({ open = false, onClose }: SidebarProps) {
                 className="block w-full text-left px-4 py-2 hover:bg-[#88DF95]/20 dark:hover:bg-[#88DF95]/30 text-black dark:text-white"
                 onClick={() => handleNew('file')}
               >
-                New File
+                New Document
               </button>
             </div>
           )}
         </div>
         <nav className="flex flex-col gap-2">
-          <a href="#" className="py-2 px-3 rounded-md text-black dark:text-white font-medium hover:bg-[#88DF95]/20 dark:hover:bg-[#88DF95]/30">Home</a>
-          <a href="#" className="py-2 px-3 rounded-md text-black dark:text-white font-medium hover:bg-[#88DF95]/20 dark:hover:bg-[#88DF95]/30">My Drive</a>
-          <a href="#" className="py-2 px-3 rounded-md text-black dark:text-white font-medium hover:bg-[#88DF95]/20 dark:hover:bg-[#88DF95]/30">Shared</a>
-          <a href="#" className="py-2 px-3 rounded-md text-black dark:text-white font-medium hover:bg-[#88DF95]/20 dark:hover:bg-[#88DF95]/30">Recent</a>
-          <a href="#" className="py-2 px-3 rounded-md text-black dark:text-white font-medium hover:bg-[#88DF95]/20 dark:hover:bg-[#88DF95]/30">Starred</a>
+          <button 
+            onClick={() => handleViewClick('home')}
+            className={getViewClass('home')}
+          >
+            Home
+          </button>
+          <button 
+            onClick={() => handleViewClick('drive')}
+            className={getViewClass('drive')}
+          >
+            My Drive
+          </button>
+          <button 
+            onClick={() => handleViewClick('shared')}
+            className={getViewClass('shared')}
+          >
+            Shared
+          </button>
+          <button 
+            onClick={() => handleViewClick('recent')}
+            className={getViewClass('recent')}
+          >
+            Recent
+          </button>
+          <button 
+            onClick={() => handleViewClick('starred')}
+            className={getViewClass('starred')}
+          >
+            Starred
+          </button>
         </nav>
       </aside>
     </>

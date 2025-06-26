@@ -19,7 +19,17 @@ export default function LoginPage() {
   const handleGoogleSignIn = async () => {
     const { user, error } = await signInWithGoogle();
     if (error) {
+      console.log(error);
       alert('Google sign-in failed');
+      return;
+    }
+    if (user && user.email) {
+      // Upsert user in DB
+      await fetch('/api/user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: user.email }),
+      });
     }
     // User is signed in, onAuthStateChanged will handle redirect
   };
