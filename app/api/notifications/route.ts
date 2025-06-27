@@ -38,8 +38,8 @@ export async function GET(req: NextRequest) {
 
     // Build the query
     let whereClause = 'WHERE n.recipient_id = $1';
-    let params = [userId];
-    let paramIndex = 2;
+    const params = [userId];
+    const paramIndex = 2;
 
     if (unreadOnly) {
       whereClause += ` AND n.read_at IS NULL`;

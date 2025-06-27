@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react';
 import { Editor } from '@tinymce/tinymce-react';
 import { getCurrentUser } from '@/lib/firebase';
+import React from 'react';
 
 interface TinyMCEEditorProps {
   value: string;
@@ -37,7 +38,7 @@ interface TinyCommentsFetchRequest {
   conversationUid: string;
 }
 
-const TinyMCEEditor = forwardRef<any, TinyMCEEditorProps>(({ 
+const TinyMCEEditor = React.forwardRef<any, TinyMCEEditorProps>(({ 
   value, 
   onChange, 
   onSave, 
@@ -839,7 +840,7 @@ const TinyMCEEditor = forwardRef<any, TinyMCEEditorProps>(({
               // Mentions configuration
               mentions_selector: '.mention',
               mentions_min_chars: 1,
-              mentions_fetch: async (query: string, success: Function) => {
+              mentions_fetch: async (query: string, success: any) => {
                 try {
                   const users = await fetchUsers(query);
                   success(users);
@@ -848,7 +849,7 @@ const TinyMCEEditor = forwardRef<any, TinyMCEEditorProps>(({
                   success([]);
                 }
               },
-              mentions_menu_hover: (userInfo: any, success: Function) => {
+              mentions_menu_hover: (userInfo: any, success: any) => {
                 const html = `
                   <div style="padding: 10px;">
                     <div style="font-weight: bold;">${userInfo.name}</div>
@@ -856,7 +857,7 @@ const TinyMCEEditor = forwardRef<any, TinyMCEEditorProps>(({
                 `;
                 success(html);
               },
-              mentions_select: (mention: any, success: Function) => {
+              mentions_select: (mention: any, success: any) => {
                 const html = `<span class="mention" data-mention-id="${mention.id}">@${mention.name}</span>`;
                 success(html);
               },
@@ -1067,5 +1068,7 @@ const TinyMCEEditor = forwardRef<any, TinyMCEEditorProps>(({
     </>
   );
 });
+
+TinyMCEEditor.displayName = "TinyMCEEditor";
 
 export default TinyMCEEditor; 
