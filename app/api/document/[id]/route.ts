@@ -145,52 +145,22 @@ export async function PUT(
       return NextResponse.json({ error: 'You only have view access to this document' }, { status: 403 });
     }
 
-    // If name is provided, update it; otherwise keep the existing name
-    if (name) {
-      // Update the document with new name
-      const updateResult = await query(
-        `UPDATE document 
-         SET name = $1, content = $2, status = $3, updated_at = now()
-         WHERE id = $4 AND created_by = $5 AND soft_delete = false
-         RETURNING id, name, content, created_at, updated_at, language, version, status, folder_id`,
-        [name, content, status, documentId, document.created_by]
-      );
+    // Update the document
+    const updateResult = await query(
+      `UPDATE document 
+       SET content = $1, status = $2, updated_at = now()
+       WHERE id = $3 AND created_by = $4 AND soft_delete = false
+       RETURNING id, name, content, created_at, updated_at, language, version, status, folder_id`,
+      [content, status, documentId, document.created_by]
+    );
 
-      if (updateResult.rows.length === 0) {
-        return NextResponse.json({ error: 'Document not found or access denied' }, { status: 404 });
-      }
-
-      const updatedDocument = updateResult.rows[0];
-      
-      // Send notification if status changed
-      if (status !== currentStatus) {
-        await sendStatusChangeNotification(documentId, document.name, currentStatus, status, userId);
-      }
-      
-      return NextResponse.json({ document: updatedDocument });
-    } else {
-      // Update only content and status, preserve existing name
-      const updateResult = await query(
-        `UPDATE document 
-         SET content = $1, status = $2, updated_at = now()
-         WHERE id = $3 AND created_by = $4 AND soft_delete = false
-         RETURNING id, name, content, created_at, updated_at, language, version, status, folder_id`,
-        [content, status, documentId, document.created_by]
-      );
-
-      if (updateResult.rows.length === 0) {
-        return NextResponse.json({ error: 'Document not found or access denied' }, { status: 404 });
-      }
-
-      const updatedDocument = updateResult.rows[0];
-      
-      // Send notification if status changed
-      if (status !== currentStatus) {
-        await sendStatusChangeNotification(documentId, document.name, currentStatus, status, userId);
-      }
-      
-      return NextResponse.json({ document: updatedDocument });
+    if (updateResult.rows.length === 0) {
+      return NextResponse.json({ error: 'Document not found or access denied' }, { status: 404 });
     }
+
+    const updatedDocument = updateResult.rows[0];
+    
+    return NextResponse.json({ document: updatedDocument });
 
   } catch (error) {
     console.error('Document update API error:', error);

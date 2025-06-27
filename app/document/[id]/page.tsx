@@ -541,7 +541,22 @@ function DocumentPage() {
   };
 
   const handleAutoSave = async () => {
-    if (!document || userAccessLevel !== 'edit') return;
+    console.log('Auto-save triggered:', { 
+      hasDocument: !!document, 
+      userAccessLevel, 
+      documentStatus: document?.status,
+      canEdit: userAccessLevel === 'edit' && document?.status !== 'FINAL'
+    });
+    
+    if (!document || userAccessLevel !== 'edit') {
+      console.log('Auto-save blocked: No document or no edit access');
+      return;
+    }
+    
+    if (document.status === 'FINAL') {
+      console.log('Auto-save blocked: Document is FINAL');
+      return;
+    }
     
     try {
       const idToken = await getCurrentUser()?.getIdToken();
@@ -549,6 +564,8 @@ function DocumentPage() {
         throw new Error('No authentication token');
       }
 
+      console.log('Sending auto-save request to:', `/api/document/${documentId}`);
+      
       const response = await fetch(`/api/document/${documentId}`, {
         method: 'PUT',
         headers: {
@@ -561,9 +578,15 @@ function DocumentPage() {
         }),
       });
 
+      console.log('Auto-save response status:', response.status);
+      
       if (!response.ok) {
-        throw new Error('Failed to auto-save document');
+        const errorText = await response.text();
+        console.error('Auto-save response error:', errorText);
+        throw new Error(`Failed to auto-save document: ${response.status} ${errorText}`);
       }
+
+      console.log('Auto-save successful');
 
     } catch (error) {
       console.error('Failed to auto-save document:', error);
